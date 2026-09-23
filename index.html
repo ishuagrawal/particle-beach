@@ -1,0 +1,284 @@
+<title>Particle Beach</title>
+<meta name="description" content="Santa Monica Beach and Pier drawn in glowing specks and ribbon strokes, lit by the real sun and moon.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --night: #03060f;
+    --ink: #eef3f5;
+    --ink-2: rgba(238, 243, 245, 0.74);
+    --ink-3: rgba(238, 243, 245, 0.5);
+    --tint: #ffc98a;
+    --serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    --mono: 'Fragment Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --gutter: clamp(16px, 3vw, 32px);
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--night);
+    color: var(--ink);
+    font: 12px/1.4 var(--mono);
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+  #scene:active { cursor: grabbing; }
+
+  .hud {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    isolation: isolate;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: calc(env(safe-area-inset-top, 0px) + var(--gutter)) var(--gutter) calc(env(safe-area-inset-bottom, 0px) + var(--gutter));
+    text-shadow: 0 1px 14px rgba(2, 4, 12, 0.6);
+  }
+  .hud > * { pointer-events: auto; }
+  .hud::before, .hud::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+  .hud::before { top: 0; height: 260px; background: radial-gradient(120% 100% at 0% 0%, rgba(2, 4, 12, 0.45), transparent 62%); }
+  .hud::after { bottom: 0; height: 210px; background: linear-gradient(to top, rgba(2, 4, 12, 0.52), transparent); }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+  .place { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+  .place h1 {
+    margin: 0;
+    font: italic 400 24px/1 var(--serif);
+    letter-spacing: 0.01em;
+    color: var(--ink);
+  }
+  .place span {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .readout { display: flex; align-items: baseline; gap: 10px 14px; flex-wrap: wrap; }
+  #clock {
+    font: 400 clamp(52px, 7vw, 84px)/0.9 var(--serif);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  #zone {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--ink-3);
+    align-self: flex-start;
+    margin-top: 0.6em;
+  }
+  #phase {
+    font: italic 400 clamp(20px, 2.2vw, 28px)/1 var(--serif);
+    color: var(--tint);
+    transition: color 0.6s ease;
+  }
+  .meta {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    max-width: 62ch;
+  }
+  .meta span + span::before { content: '·'; margin-right: 10px; }
+  .meta + .meta { margin-top: 6px; }
+  .meta span:empty { display: none; }
+
+  .side { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; flex-shrink: 0; }
+  .places { display: flex; flex-direction: column; align-items: flex-end; }
+  .places-label, .places-toggle {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 2px;
+  }
+  .places .mode { flex-direction: row-reverse; padding: 5px 0; white-space: nowrap; }
+  .places-toggle { display: none; }
+  #hint {
+    max-width: 34ch;
+    margin: 0;
+    text-align: right;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1.7;
+    color: var(--ink-3);
+    transition: opacity 1.2s ease;
+  }
+  #hint.used { opacity: 0; }
+
+  .dock { width: min(100%, 940px); display: grid; gap: 10px; }
+  .controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 24px; }
+  .group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+  button {
+    font: 400 11px/1 var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    background: none;
+    border: 0;
+    padding: 8px 0;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    text-shadow: inherit;
+  }
+  button:hover { color: var(--ink); }
+  button:focus-visible { outline: 1px solid var(--tint); outline-offset: 4px; }
+  .mode { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-2); }
+  .mode::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.35;
+    transition: background 0.4s ease, box-shadow 0.4s ease, opacity 0.4s ease;
+  }
+  .mode[aria-pressed='true'] { color: var(--ink); }
+  .mode[aria-pressed='true']::before { opacity: 1; background: var(--tint); box-shadow: 0 0 10px 2px var(--tint); }
+
+  .track { position: relative; height: 40px; }
+  #strip { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #time {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: ew-resize;
+    touch-action: none;
+  }
+  #time::-webkit-slider-runnable-track { height: 40px; background: transparent; }
+  #time::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 3px;
+    height: 40px;
+    border-radius: 2px;
+    background: var(--ink);
+    box-shadow: 0 0 14px 3px var(--tint);
+  }
+  #time::-moz-range-track { height: 40px; background: transparent; }
+  #time::-moz-range-thumb { width: 3px; height: 40px; border: 0; border-radius: 2px; background: var(--ink); box-shadow: 0 0 14px 3px var(--tint); }
+  #time:focus-visible { outline: 1px solid var(--tint); outline-offset: 4px; }
+  .ticks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #boot, .fallback {
+    position: fixed;
+    left: var(--gutter);
+    top: 50%;
+    margin: 0;
+    font: italic 400 22px/1.3 var(--serif);
+    color: var(--ink-2);
+  }
+  .fallback { display: none; max-width: 36ch; }
+  .no-webgl .fallback { display: block; }
+  .no-webgl #boot, .no-webgl .hud { display: none; }
+
+  @media (max-width: 640px) {
+    #hint { display: none; }
+    .places-toggle { display: inline-flex; color: var(--ink-2); padding: 6px 0; white-space: nowrap; }
+    .places-label { display: none; }
+    .places { display: none; }
+    .places.open { display: flex; }
+    .place h1 { font-size: 20px; }
+    .meta { font-size: 10px; gap: 3px 8px; }
+    .meta span + span::before { margin-right: 8px; }
+    .controls { gap: 2px 18px; }
+    .group { gap: 2px 13px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hint, #phase, .mode::before { transition: none; }
+  }
+</style>
+
+<canvas id="scene" aria-label="Santa Monica Beach and Pier at the current time there, drawn in glowing particles. Drag to look around, use WASD or the arrow keys to walk, or click the ground to walk there."></canvas>
+
+<div class="hud">
+  <div class="top">
+    <header>
+      <div class="place"><h1>Santa Monica</h1><span>State Beach · California</span></div>
+      <div class="readout">
+        <span id="clock">--:--</span>
+        <span id="zone"></span>
+        <span id="phase">&nbsp;</span>
+      </div>
+      <div class="meta"><span id="sun"></span><span id="moon"></span><span id="times"></span></div>
+      <div class="meta"><span>34.0094° N 118.4973° W</span><span id="source">Live</span><span id="yours"></span></div>
+    </header>
+    <div class="side">
+      <button id="placesToggle" class="places-toggle" type="button" aria-expanded="false" aria-controls="places">Go to</button>
+      <nav id="places" class="places" aria-label="Go to"><span class="places-label" aria-hidden="true">Go to</span></nav>
+      <p id="hint">WASD or arrows walk · Shift runs<br>Click the ground to go there<br>Drag to look · scroll to zoom<br>Space cycles the day · [ ] steps it</p>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="controls">
+      <div class="group" role="group" aria-label="Clock">
+        <button id="live" class="mode" type="button" aria-pressed="true">Live</button>
+        <button id="cycle" class="mode" type="button" aria-pressed="false">Cycle the day</button>
+      </div>
+      <div class="group" role="group" aria-label="Jump to">
+        <button type="button" data-preset="firstlight">First light</button>
+        <button type="button" data-preset="sunrise">Sunrise</button>
+        <button type="button" data-preset="midday">Midday</button>
+        <button type="button" data-preset="golden">Golden hour</button>
+        <button type="button" data-preset="sunset">Sunset</button>
+        <button type="button" data-preset="bluehour">Blue hour</button>
+        <button type="button" data-preset="night">Night</button>
+      </div>
+    </div>
+    <div class="track">
+      <canvas id="strip" aria-hidden="true"></canvas>
+      <input id="time" type="range" min="0" max="1439" step="1" value="720" aria-label="Time of day in Santa Monica">
+    </div>
+    <div class="ticks" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+  </div>
+</div>
+
+<p id="boot">Scattering sand…</p>
+<p class="fallback">This beach needs WebGL to draw its particles, and this browser didn’t provide it.</p>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    }
+  }
+</script>
+<script type="module" src="js/main.js"></script>
