@@ -29,6 +29,19 @@ import { createTraffic } from './traffic.js';
 const $ = (id) => document.getElementById(id);
 const canvas = $('scene');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// #trailer hands the camera, the clock and the frame loop to trailer.js.
+const TRAILER = location.hash.startsWith('#trailer');
+if (TRAILER) {
+  document.body.classList.add('trailer');
+  // every page load of the trailer must build the same world
+  let seed = 0x9e3779b9;
+  Math.random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 let renderer;
 try {
@@ -39,7 +52,7 @@ try {
 }
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+let pixelRatio = TRAILER ? window.devicePixelRatio || 1 : Math.min(window.devicePixelRatio || 1, 1.75);
 renderer.setPixelRatio(pixelRatio);
 
 const scene = new THREE.Scene();
@@ -306,10 +319,11 @@ function adapt(dt) {
 const clock = new THREE.Clock();
 let t = 0;
 let uiAcc = 1;
+let director = null; // { update(dt, t) → fov changed } when trailer.js drives the camera
 let first = true;
 const castList = [];
 
-function step(dt) {
+function step(dt, render = true) {
   t += dt;
   const tw = state.tween;
   if (tw) {
@@ -330,7 +344,7 @@ function step(dt) {
 
   U.uTime.value = t;
   applySky({ sun, moon, illum, hour: state.hour });
-  if (controls.update(dt, t)) updateScale();
+  if (director ? director.update(dt, t) : controls.update(dt, t)) updateScale();
   camera.updateMatrixWorld();
   frustum.setFromProjectionMatrix(viewProj.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
   sky.update(camera, { lst: localSidereal(ms), illum, moonPos: moon });
@@ -342,7 +356,7 @@ function step(dt) {
   }
   setCasters(castList, camera.position);
   ribbons.update(t, camera.position, frustum);
-  composer.render();
+  if (render) composer.render();
 
   uiAcc += dt;
   if (uiAcc > 0.1) {
@@ -368,6 +382,18 @@ window.addEventListener('resize', resize);
 setMode('live');
 refreshDay(Date.now());
 resize();
-requestAnimationFrame(frame);
+if (TRAILER) {
+  import('./trailer.js').then((m) =>
+    m.start({
+      THREE, state, step, setMode, renderer, composer, bloom, scene, camera, controls, layers, U, sea, crowd, breakers, play, ribbons, updateScale, resize,
+      setDay(ms) { dayKey = ''; dayRef = ms; refreshDay(ms); },
+      setTime(v) { t = v; },
+      getTime: () => t,
+      direct(d) { director = d; },
+      events: () => events,
+      presets: () => presets,
+    })
+  );
+} else requestAnimationFrame(frame);
 
 export { scene, layers, ribbons };

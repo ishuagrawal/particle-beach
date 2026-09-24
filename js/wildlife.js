@@ -111,6 +111,7 @@ export function createWildlife(scene, ribbons) {
   const cloud = new FigureCloud(scene, 26000);
   const r = rng(707);
   const actors = [];
+  const probe = { pelicans: [] }; // live positions, for the trailer camera
 
   // ---- brown pelicans, two squadrons ----
   const squads = [
@@ -133,6 +134,8 @@ export function createWildlife(scene, ribbons) {
       rib: ribbons.create({ width: 0.12, life: 1.6, colorA: '#fff7e0', colorB: '#8fc7ff', opacity: 0.45, twist: 0.4, strands: 1.5, billow: 0.15, drift: [0, 0, 0], minDist: 0.25, specks: 18 }),
     }));
     let nextDive = 25 + r() * 30;
+    const seen = birds.map(() => V());
+    probe.pelicans.push(seen);
     actors.push((t, dt, hour) => {
       const p = presence(hour, sq.win[0], sq.win[1], 0.5);
       const L = 1300;
@@ -177,6 +180,7 @@ export function createWildlife(scene, ribbons) {
           if (d >= 1) b.dive = -1;
         }
         tmp.set(x, y, z);
+        seen[i].copy(tmp);
         const f = V().set(sq.dir, b.dive > 0.45 && b.dive < 0.62 ? -1.6 : 0, 0);
         b.bird.pose(tmp, f, Math.sin(t * 0.4 + i) * 0.08, b1, b2, a, fold);
         b.rib.follow(b.bird.tipL ?? tmp);
@@ -527,6 +531,7 @@ export function createWildlife(scene, ribbons) {
 
   return {
     loafers,
+    probe,
     update(t, dt, ctx) {
       cloud.begin(ctx);
       for (const a of actors) a(t, dt, ctx.hour, ctx.camera.position);

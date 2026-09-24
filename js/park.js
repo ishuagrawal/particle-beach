@@ -523,8 +523,23 @@ export function createPark(scene, ribbons) {
   // the lift hill: from the station up to its crest
   const liftStart = 0.02 * length;
   const liftEnd = 0.2 * length;
+  // for the trailer camera: where the train is, and a way to cue it
+  const probe = {
+    train: new THREE.Vector3(),
+    trainDir: new THREE.Vector3(),
+    speed: 0,
+    length,
+    curve,
+    cue(at, speed) {
+      s = at * length;
+      v = speed;
+      dwell = 0;
+      trainRibs.forEach((rb) => rb.reset());
+    },
+  };
 
   return {
+    probe,
     update(t, dt, { hour }) {
       const open = presence(hour, 10.9, 23.1, 0.25);
       U.uOpen.value = open;
@@ -581,6 +596,11 @@ export function createPark(scene, ribbons) {
           trainPos[o] = P.x + T.x * lx + N.x * (ly + 0.35) + B.x * lz;
           trainPos[o + 1] = P.y + T.y * lx + N.y * (ly + 0.35) + B.y * lz;
           trainPos[o + 2] = P.z + T.z * lx + N.z * (ly + 0.35) + B.z * lz;
+        }
+        if (c === 0) {
+          probe.train.copy(P);
+          probe.trainDir.copy(T);
+          probe.speed = v;
         }
         if (c === CARS - 1) {
           tmp.copy(P).addScaledVector(N, 1.2).addScaledVector(T, -0.8);
